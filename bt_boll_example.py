@@ -3,9 +3,6 @@ import pandas as pd
 import yfinance as yf
 
 # Define parameters
-symbol = 'AAPL'
-start_date = '2015-01-01'
-end_date = '2023-03-04'
 window = 20
 std = 2
 
@@ -23,8 +20,16 @@ class BBStrategy(bt.Strategy):
         elif self.data.close > self.bollinger.lines.top:
             self.sell()
 
-# Download data from Yahoo Finance
-data = bt.feeds.PandasData(dataname=yf.download(symbol, start=start_date, end=end_date))
+symbol = 'A2M.AX'
+
+# # Download data from Yahoo Finance
+# data = bt.feeds.PandasData(dataname=yf.download(symbol, start=start_date, end=end_date))
+
+# Data from local csv file from yahoo finance history
+datapath = ('./yf/A2M.AX.csv')   
+dataframe = pd.read_csv(datapath, index_col=0, parse_dates=True)                            
+dataframe['openinterest'] = 0    
+data = bt.feeds.PandasData(dataname=dataframe) 
 
 # Create cerebro instance
 cerebro = bt.Cerebro()
