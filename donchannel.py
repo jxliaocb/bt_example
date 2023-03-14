@@ -1,5 +1,6 @@
 from datetime import datetime
 import backtrader as bt
+import pandas as pd
 
 
 class DonchianChannels(bt.Indicator):
@@ -52,9 +53,15 @@ if __name__ == '__main__':
     cerebro.broker.setcash(1337.0)
     cerebro.broker.setcommission(commission=0.001)
 
-    data = bt.feeds.YahooFinanceData(dataname='AAPL',
-                                     fromdate=datetime(2017, 1, 1),
-                                     todate=datetime(2017, 12, 31))
+    # data = bt.feeds.YahooFinanceData(dataname='AAPL',
+    #                                  fromdate=datetime(2017, 1, 1),
+    #                                  todate=datetime(2017, 12, 31))
+    
+    # Data from local csv file from yahoo finance history
+    datapath = ('./yf/A2M.AX.csv')   
+    dataframe = pd.read_csv(datapath, index_col=0, parse_dates=True)                            
+    # dataframe['openinterest'] = 0    
+    data = bt.feeds.PandasData(dataname=dataframe) 
     cerebro.adddata(data)
     print('Starting Portfolio Value: %.2f' % cerebro.broker.getvalue())
     cerebro.run()
