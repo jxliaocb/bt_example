@@ -49,21 +49,23 @@ class MyStrategy(bt.Strategy):
 
 if __name__ == '__main__':
     cerebro = bt.Cerebro()
+    init_cash = 100000.0
     cerebro.addstrategy(MyStrategy)
-    cerebro.broker.setcash(1337.0)
-    cerebro.broker.setcommission(commission=0.001)
+    cerebro.broker.setcash(init_cash)
+    cerebro.broker.setcommission(commission=0.003)
 
     # data = bt.feeds.YahooFinanceData(dataname='AAPL',
     #                                  fromdate=datetime(2017, 1, 1),
     #                                  todate=datetime(2017, 12, 31))
-    
+
     # Data from local csv file from yahoo finance history
-    datapath = ('./yf/A2M.AX.csv')   
-    dataframe = pd.read_csv(datapath, index_col=0, parse_dates=True)                            
-    # dataframe['openinterest'] = 0    
-    data = bt.feeds.PandasData(dataname=dataframe) 
+    datapath = ('./yf/A2M.AX.csv')
+    dataframe = pd.read_csv(datapath, index_col=0, parse_dates=True)
+    # dataframe['openinterest'] = 0
+    data = bt.feeds.PandasData(dataname=dataframe)
     cerebro.adddata(data)
     print('Starting Portfolio Value: %.2f' % cerebro.broker.getvalue())
     cerebro.run()
     print('Ending Portfolio Value: %.2f' % cerebro.broker.getvalue())
+    print('Profit/Loss: %.2f' % (cerebro.broker.getvalue() - init_cash))
     cerebro.plot()

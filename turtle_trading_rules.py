@@ -60,9 +60,12 @@ class TestSizer(bt.Sizer):
 
 
 class TestStrategy(bt.Strategy):
-    params = (('maperiod', 15),  ('printlog', False), )
+    params = (
+        # ('window', 20), ('exit_window', 10), ('maperiod', 14),
+        ('window', 55), ('exit_window', 55), ('maperiod', 30),
+        ('printlog', False))
 
-    def log(self, txt, dt=None, doprint=False):
+    def log(self, txt, dt=None, doprint=True):
         if self.params.printlog or doprint:
             dt = dt or self.datas[0].datetime.date(0)
             print('%s, %s' % (dt.isoformat(), txt))
@@ -80,13 +83,13 @@ class TestStrategy(bt.Strategy):
         self.buytime = 0
         # 参数计算，唐奇安通道上轨、唐奇安通道下轨、ATR
         self.DonchianHi = bt.indicators.Highest(
-            self.datahigh(-1), period=20, subplot=False)
+            self.datahigh(-1), period=self.params.window, subplot=False)
         self.DonchianLo = bt.indicators.Lowest(
-            self.datalow(-1), period=10, subplot=False)
+            self.datalow(-1), period=self.params.exit_window, subplot=False)
         self.TR = bt.indicators.Max((self.datahigh(0) - self.datalow(0)), abs(
             self.dataclose(-1) - self.datahigh(0)), abs(self.dataclose(-1) - self.datalow(0)))
         self.ATR = bt.indicators.SimpleMovingAverage(
-            self.TR, period=14, subplot=True)
+            self.TR, period=self.params.maperiod, subplot=True)
         # 唐奇安通道上轨突破、唐奇安通道下轨突破
         self.CrossoverHi = bt.ind.CrossOver(self.dataclose(0), self.DonchianHi)
         self.CrossoverLo = bt.ind.CrossOver(self.dataclose(0), self.DonchianLo)
@@ -98,10 +101,10 @@ class TestStrategy(bt.Strategy):
         if order.status in [order.Completed]:
             if order.isbuy():
                 self.log(
-                'BUY EXECUTED, Price: %.2f, Cost: %.2f, Comm %.2f' %
-                (order.executed.price,
-                order.executed.value,
-                order.executed.comm), doprint=True)
+                    'BUY EXECUTED, Price: %.2f, Cost: %.2f, Comm %.2f' %
+                    (order.executed.price,
+                    order.executed.value,
+                    order.executed.comm), doprint=True)
                 self.buyprice = order.executed.price
                 self.buycomm = order.executed.comm
             else:
@@ -111,7 +114,7 @@ class TestStrategy(bt.Strategy):
                      order.executed.comm), doprint=True)
                 self.bar_executed = len(self)
         elif order.status in [order.Canceled, order.Margin, order.Rejected]:
-            self.log('Order Canceled/Margin/Rejected')
+            self.log(f'Order {order.Status[order.status]}')
         self.order = None
 
     def notify_trade(self, trade):
@@ -125,6 +128,7 @@ class TestStrategy(bt.Strategy):
             return
         # 入场
         if self.CrossoverHi > 0 and self.buytime == 0:
+            self.log('入场')
             self.newstake = self.broker.getvalue() * 0.01 / self.ATR
             self.newstake = int(self.newstake / 100) * 100
             self.sizer.p.stake = self.newstake
@@ -132,6 +136,7 @@ class TestStrategy(bt.Strategy):
             self.order = self.buy()
         # 加仓
         elif self.datas[0].close > self.buyprice+0.5*self.ATR[0] and self.buytime > 0 and self.buytime < 5:
+            self.log('加仓')
             self.newstake = self.broker.getvalue() * 0.01 / self.ATR
             self.newstake = int(self.newstake / 100) * 100
             self.sizer.p.stake = self.newstake
@@ -139,36 +144,43 @@ class TestStrategy(bt.Strategy):
             self.buytime = self.buytime + 1
         # 出场
         elif self.CrossoverLo < 0 and self.buytime > 0:
+            self.log('出场')
             self.order = self.sell()
             self.buytime = 0
         # 止损
         elif self.datas[0].close < (self.buyprice - 2*self.ATR[0]) and self.buytime > 0:
+            self.log('止损')
             self.order = self.sell()
             self.buytime = 0
-   
-    def stop(self):        
+
+    def stop(self):
         self.log('(MA Period %2d) Ending Value %.2f' % (self.params.maperiod, self.broker.getvalue()), doprint=True)
 
 
-if __name__ == '__main__':    
-    # 创建主控制器    
-    cerebro = bt.Cerebro()    
-    # 加入策略    
-    cerebro.addstrategy(TestStrategy)   
-    # 准备股票日线数据，输入到backtrader    
-    datapath = ('./yf/A2M.AX.csv')   
-    dataframe = pd.read_csv(datapath, index_col=0, parse_dates=True)                            
-    dataframe['openinterest'] = 0    
-    data = bt.feeds.PandasData(dataname=dataframe,fromdate=datetime.datetime(2008, 1, 8),  todate=datetime.datetime(2019, 12, 31))    
-    cerebro.adddata(data)    
-    # broker设置资金、手续费    
-    cerebro.broker.setcash(100000.0)    
+if __name__ == '__main__':
+    # 创建主控制器
+    cerebro = bt.Cerebro()
+    # 加入策略
+    cerebro.addstrategy(TestStrategy)
+    # 准备股票日线数据，输入到backtrader
+    # datapath = ('./yf/A2M.AX.csv')
+    datapath = ('./yf/600837.csv')
+    dataframe = pd.read_csv(datapath, index_col=0, parse_dates=True)
+    dataframe['openinterest'] = 0
+    # fromdate=datetime.datetime(2022, 6, 1)
+    # todate=datetime.datetime(2023,3,14)
+    data = bt.feeds.PandasData(dataname=dataframe)
+    cerebro.adddata(data)
+    # broker设置资金、手续费
+    init_cash = 100000.0
+    cerebro.broker.setcash(init_cash)
     cerebro.broker.setcommission(commission=0.003)
-    # 设置买入策略    
-    cerebro.addsizer(TestSizer)    
-    print('Starting Portfolio Value: %.2f' % cerebro.broker.getvalue())   
-    # 启动回测    
-    cerebro.run()    
-    print('Final Portfolio Value: %.2f' % cerebro.broker.getvalue())    
-    # 曲线绘图输出    
-    # cerebro.plot()
+    # 设置买入策略
+    cerebro.addsizer(TestSizer)
+    print('Starting Portfolio Value: %.2f' % cerebro.broker.getvalue())
+    # 启动回测
+    cerebro.run()
+    print('Final Portfolio Value: %.2f' % cerebro.broker.getvalue())
+    # 曲线绘图输出
+    print('Profit/Loss: %.2f' % (cerebro.broker.getvalue() - init_cash))
+    cerebro.plot()
